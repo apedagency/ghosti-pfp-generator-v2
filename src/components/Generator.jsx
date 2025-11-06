@@ -4,7 +4,7 @@ import { getRandomTheme } from '../utils/themes';
 
 const Generator = ({ onImageGenerated }) => {
   const [prompt, setPrompt] = useState('');
-  const [previewImage, setPreviewImage] = useState('/base.jpg');
+  const [previewImage, setPreviewImage] = useState('/base.png');
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentPrompt, setCurrentPrompt] = useState('');
 
@@ -85,7 +85,7 @@ const Generator = ({ onImageGenerated }) => {
                   alt="Ghosti Preview"
                   className="w-full h-full object-contain transition-opacity duration-300"
                   onError={(e) => {
-                    e.target.src = '/base.jpg';
+                    e.target.src = '/base.png';
                   }}
                 />
               )}
