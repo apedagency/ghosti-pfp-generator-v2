@@ -21,27 +21,39 @@ export default async function handler(req, res) {
   try {
     const client = new OpenAI({ apiKey });
 
-    const imgPath = path.join(process.cwd(), "public", "base.jpg");
-    const imgStream = fs.createReadStream(imgPath);
+    // Load base ghost + mask from /public
+    const baseImagePath = path.join(process.cwd(), "public", "base.png");
+    const maskImagePath = path.join(process.cwd(), "public", "mask.png");
 
-    const result = await client.images.variations({
-      image: imgStream,
-      n: 1,
+    const baseStream = fs.createReadStream(baseImagePath);
+    const maskStream = fs.createReadStream(maskImagePath);
+
+    // Strong instruction: do NOT change ghost, only add traits
+    const fullPrompt = `
+      Do NOT alter the ghost's shape, eyes, pose, or art style.
+      Only add the following costume or traits on top: ${prompt}.
+      Flat 2D style, no shading changes, transparent background.
+    `;
+
+    const response = await client.images.edits({
+      model: "gpt-image-1",
+      image: baseStream,
+      mask: maskStream,
+      prompt: fullPrompt,
       size: "1024x1024",
-      prompt: `Apply the following style to this ghost character: ${prompt}. Keep the same pose and structure.`,
       response_format: "b64_json",
     });
 
-    const b64 = result.data?.[0]?.b64_json;
+    const b64 = response.data?.[0]?.b64_json;
     if (!b64) {
-      return res.status(502).json({ error: "No image returned from OpenAI" });
+      return res.status(502).json({ error: "No image returned" });
     }
 
     return res.status(200).json({ imageBase64: b64 });
-  } catch (error) {
-    console.error("Error:", error.response?.data || error.message);
+  } catch (err) {
+    console.error("Error:", err.response?.data || err.message);
     return res.status(500).json({
-      error: error.response?.data?.error?.message || "Failed to generate image",
+      error: err.response?.data?.error?.message || "Failed to generate image",
     });
   }
 }
