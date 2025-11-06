@@ -21,33 +21,33 @@ export default async function handler(req, res) {
   try {
     const client = new OpenAI({ apiKey });
 
-    // Paths to base image and mask image
+    // Path to base and mask images in /public
     const baseImagePath = path.join(process.cwd(), "public", "base.png");
     const maskImagePath = path.join(process.cwd(), "public", "mask.png");
 
     const baseStream = fs.createReadStream(baseImagePath);
     const maskStream = fs.createReadStream(maskImagePath);
 
-    // Prompt: strong instruction to preserve ghost, only add traits
+    // Strong instructions to preserve base Ghosti
     const fullPrompt = `
-      You MUST NOT modify the ghost's body, shape, outline, or style. 
-      Add the following trait(s) ONLY in the transparent areas of the mask: ${prompt}.
-      The ghost must remain 100% visually identical. Only add accessories, headwear, props, etc.
-      Output must be flat 2D vector style, simple colors, transparent background, PNG format.
+      Do NOT change the ghost's body, outline, or style.
+      You may ONLY draw in the transparent parts of the mask.
+      Add the following visual trait(s): ${prompt}.
+      Final result MUST keep original ghost untouched, in flat 2D style, transparent background, PNG.
     `;
 
     const response = await client.images.edits({
       model: "gpt-image-1",
       image: baseStream,
-      mask: maskStream, // mask restricts where AI can draw
-      prompt: fullPrompt,
-      size: "512x512", // match your base resolution
+      mask: maskStream,
+      prompt: fullPrompt.trim(),
+      size: "512x512", // match your base image resolution
       response_format: "b64_json",
     });
 
     const b64 = response.data?.[0]?.b64_json;
     if (!b64) {
-      return res.status(502).json({ error: "No image returned" });
+      return res.status(502).json({ error: "No image returned from OpenAI" });
     }
 
     return res.status(200).json({ imageBase64: b64 });
