@@ -3,6 +3,12 @@ import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 
+export const config = {
+  api: {
+    bodyParser: true,
+  },
+};
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -21,27 +27,34 @@ export default async function handler(req, res) {
   try {
     const client = new OpenAI({ apiKey });
 
-    // Path to base and mask images in /public
+    // Paths to base ghost and mask (512x512)
     const baseImagePath = path.join(process.cwd(), "public", "base.png");
     const maskImagePath = path.join(process.cwd(), "public", "mask.png");
+
+    // Ensure both exist
+    if (!fs.existsSync(baseImagePath) || !fs.existsSync(maskImagePath)) {
+      return res.status(500).json({ error: "Base or mask image not found" });
+    }
 
     const baseStream = fs.createReadStream(baseImagePath);
     const maskStream = fs.createReadStream(maskImagePath);
 
-    // Strong instructions to preserve base Ghosti
+    // Strong prompt: don’t change ghost, only add allowed traits
     const fullPrompt = `
-      Do NOT change the ghost's body, outline, or style.
-      You may ONLY draw in the transparent parts of the mask.
-      Add the following visual trait(s): ${prompt}.
-      Final result MUST keep original ghost untouched, in flat 2D style, transparent background, PNG.
-    `;
+      Do NOT modify the ghost's body, pose, face, outline, or style.
+      Only draw/add traits inside the transparent mask area.
+      The trait to add: ${prompt}.
+      The ghost must remain pixel-perfect identical.
+      Output must be flat 2D style, transparent background.
+    `.trim();
 
-    const response = await client.images.edits({
+    // Generate edited image
+    const response = await client.images.createEdit({
       model: "gpt-image-1",
       image: baseStream,
       mask: maskStream,
-      prompt: fullPrompt.trim(),
-      size: "512x512", // match your base image resolution
+      prompt: fullPrompt,
+      size: "512x512",
       response_format: "b64_json",
     });
 
@@ -50,6 +63,7 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: "No image returned from OpenAI" });
     }
 
+    // Return Base64 for direct display in frontend
     return res.status(200).json({ imageBase64: b64 });
   } catch (err) {
     console.error("Error generating image:", err.response?.data || err.message);
